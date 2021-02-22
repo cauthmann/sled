@@ -18,18 +18,18 @@ const CUTOFF: usize = SZ - 1;
 /// by an Arc. The inner buffer is guaranteed to be aligned to
 /// 8 byte boundaries.
 #[repr(align(8))]
-pub struct IVec([u8; SZ]);
+pub struct IVec<Encoding = ()>([u8; SZ], std::marker::PhantomData<Encoding>);
 
-impl Clone for IVec {
-    fn clone(&self) -> IVec {
+impl<E> Clone for IVec<E> {
+    fn clone(&self) -> Self {
         if !self.is_inline() {
             self.deref_header().rc.fetch_add(1, Ordering::Relaxed);
         }
-        IVec(self.0)
+        IVec(self.0, std::marker::PhantomData)
     }
 }
 
-impl Drop for IVec {
+impl<E> Drop for IVec<E> {
     fn drop(&mut self) {
         if !self.is_inline() {
             let rc = self.deref_header().rc.fetch_sub(1, Ordering::Release) - 1;
@@ -56,11 +56,18 @@ struct RemoteHeader {
     len: usize,
 }
 
-impl Deref for IVec {
+impl Deref for IVec<()> {
     type Target = [u8];
 
     #[inline]
     fn deref(&self) -> &[u8] {
+        self.as_ref()
+    }
+}
+
+impl<E> AsRef<[u8]> for IVec<E> {
+    #[inline]
+    fn as_ref(&self) -> &[u8] {
         if self.is_inline() {
             &self.0[..self.inline_len()]
         } else {
@@ -73,16 +80,16 @@ impl Deref for IVec {
     }
 }
 
-impl AsRef<[u8]> for IVec {
+impl DerefMut for IVec<()> {
     #[inline]
-    fn as_ref(&self) -> &[u8] {
-        self
+    fn deref_mut(&mut self) -> &mut [u8] {
+        self.as_mut()
     }
 }
 
-impl DerefMut for IVec {
+impl<E> AsMut<[u8]> for IVec<E> {
     #[inline]
-    fn deref_mut(&mut self) -> &mut [u8] {
+    fn as_mut(&mut self) -> &mut [u8] {
         let inline_len = self.inline_len();
         if self.is_inline() {
             &mut self.0[..inline_len]
@@ -97,26 +104,19 @@ impl DerefMut for IVec {
     }
 }
 
-impl AsMut<[u8]> for IVec {
-    #[inline]
-    fn as_mut(&mut self) -> &mut [u8] {
-        self.deref_mut()
-    }
-}
-
-impl Default for IVec {
+impl Default for IVec<()> {
     fn default() -> Self {
         Self::from(&[])
     }
 }
 
-impl Hash for IVec {
+impl<E> Hash for IVec<E> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.deref().hash(state);
     }
 }
 
-impl IVec {
+impl<E> IVec<E> {
     fn new(slice: &[u8]) -> Self {
         let mut data = [0_u8; SZ];
         if slice.len() <= CUTOFF {
@@ -147,7 +147,7 @@ impl IVec {
             // the buffer to always have an alignment of 8 (2 ^ 3).
             assert_eq!(data[SZ - 1] & 0b111, 0);
         }
-        Self(data)
+        Self(data, std::marker::PhantomData)
     }
 
     fn remote_ptr(&self) -> *const u8 {
@@ -175,12 +175,12 @@ impl IVec {
     fn make_mut(&mut self) {
         assert!(!self.is_inline());
         if self.deref_header().rc.load(Ordering::Acquire) != 1 {
-            *self = IVec::from(self.deref())
+            *self = IVec::new(self.as_ref())
         }
     }
 }
 
-impl FromIterator<u8> for IVec {
+impl FromIterator<u8> for IVec<()> {
     fn from_iter<T>(iter: T) -> Self
     where
         T: IntoIterator<Item = u8>,
@@ -190,55 +190,55 @@ impl FromIterator<u8> for IVec {
     }
 }
 
-impl From<&[u8]> for IVec {
+impl From<&[u8]> for IVec<()> {
     fn from(slice: &[u8]) -> Self {
         IVec::new(slice)
     }
 }
 
-impl From<&str> for IVec {
+impl From<&str> for IVec<()> {
     fn from(s: &str) -> Self {
         Self::from(s.as_bytes())
     }
 }
 
-impl From<String> for IVec {
+impl From<String> for IVec<()> {
     fn from(s: String) -> Self {
         Self::from(s.as_bytes())
     }
 }
 
-impl From<&String> for IVec {
+impl From<&String> for IVec<()> {
     fn from(s: &String) -> Self {
         Self::from(s.as_bytes())
     }
 }
 
-impl From<&IVec> for IVec {
-    fn from(v: &Self) -> Self {
-        v.clone()
+impl<E> From<&IVec<E>> for IVec<E> {
+    fn from(ivec: &IVec<E>) -> Self {
+        ivec.clone()
     }
 }
 
-impl From<Vec<u8>> for IVec {
+impl From<Vec<u8>> for IVec<()> {
     fn from(v: Vec<u8>) -> Self {
         IVec::new(&v)
     }
 }
 
-impl From<Box<[u8]>> for IVec {
+impl From<Box<[u8]>> for IVec<()> {
     fn from(v: Box<[u8]>) -> Self {
         IVec::new(&v)
     }
 }
 
-impl std::borrow::Borrow<[u8]> for IVec {
+impl std::borrow::Borrow<[u8]> for IVec<()> {
     fn borrow(&self) -> &[u8] {
         self.as_ref()
     }
 }
 
-impl std::borrow::Borrow<[u8]> for &IVec {
+impl std::borrow::Borrow<[u8]> for &IVec<()> {
     fn borrow(&self) -> &[u8] {
         self.as_ref()
     }
@@ -247,7 +247,7 @@ impl std::borrow::Borrow<[u8]> for &IVec {
 macro_rules! from_array {
     ($($s:expr),*) => {
         $(
-            impl From<&[u8; $s]> for IVec {
+            impl From<&[u8; $s]> for IVec<()> {
                 fn from(v: &[u8; $s]) -> Self {
                     Self::from(&v[..])
                 }
@@ -261,33 +261,33 @@ from_array!(
     21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32
 );
 
-impl Ord for IVec {
+impl Ord for IVec<()> {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.as_ref().cmp(other.as_ref())
     }
 }
 
-impl PartialOrd for IVec {
+impl PartialOrd for IVec<()> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<T: AsRef<[u8]>> PartialEq<T> for IVec {
+impl<T: AsRef<[u8]>> PartialEq<T> for IVec<()> {
     fn eq(&self, other: &T) -> bool {
         self.as_ref() == other.as_ref()
     }
 }
 
-impl PartialEq<[u8]> for IVec {
+impl PartialEq<[u8]> for IVec<()> {
     fn eq(&self, other: &[u8]) -> bool {
         self.as_ref() == other
     }
 }
 
-impl Eq for IVec {}
+impl Eq for IVec<()> {}
 
-impl fmt::Debug for IVec {
+impl<E> fmt::Debug for IVec<E> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.as_ref().fmt(f)
     }
