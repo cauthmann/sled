@@ -187,6 +187,7 @@ mod context;
 mod db;
 mod dll;
 mod ebr;
+mod encoding;
 mod fastcmp;
 mod fastlock;
 mod fnv;
@@ -299,6 +300,9 @@ pub use self::{
     transaction::Transactional,
     tree::{CompareAndSwapError, Tree},
 };
+
+#[cfg(feature = "experimental_typed_api")]
+pub use self::encoding::{Decoder, Encoder, IntegerEncoding, StringEncoding};
 
 #[cfg(feature = "metrics")]
 use self::{
