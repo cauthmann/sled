@@ -44,6 +44,10 @@ io_uring = ["rio"]
 docs = []
 miri_optimizations = []
 mutex = []
+# This API is experimental and not subject to semver guarantees.
+# If you use it in your project, please provide feedback.
+# See: https://github.com/spacejam/sled/issues/1266
+experimental_typed_api = []
 
 [dependencies]
 libc = "0.2.81"
