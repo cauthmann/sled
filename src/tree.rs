@@ -1553,6 +1553,29 @@ impl Tree {
         self.tree_id.clone()
     }
 
+    /// Switch to the typed API. See `[TypedTree]` for details and examples.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let config = sled::Config::new().temporary(true);
+    /// # let db = config.open()?;
+    /// let tree = db.open_tree(b"id_to_name")?.with_encodings::<IntegerEncoding<u128>, StringEncoding>();
+    /// # Ok(()) }
+    /// ```
+    #[cfg(feature = "experimental_typed_api")]
+    #[must_use]
+    pub fn with_encodings<K, V>(self) -> TypedTree<K, V>
+    where
+        for<'a> K: Encoder<'a>,
+        //for<'a> K: Decoder<'a>,
+        for<'a> V: Encoder<'a>,
+        for<'a> V: Decoder<'a>,
+    {
+        TypedTree::new(self)
+    }
+
     /// Returns the CRC32 of all keys and values
     /// in this Tree.
     ///

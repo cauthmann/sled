@@ -210,6 +210,8 @@ mod sys_limits;
 mod threadpool;
 pub mod transaction;
 mod tree;
+#[cfg(feature = "experimental_typed_api")]
+mod tree_typed;
 mod varint;
 
 /// Functionality for conditionally triggering failpoints under test.
@@ -302,7 +304,10 @@ pub use self::{
 };
 
 #[cfg(feature = "experimental_typed_api")]
-pub use self::encoding::{Decoder, Encoder, IntegerEncoding, StringEncoding};
+pub use self::{
+    encoding::{Decoder, Encoder, IntegerEncoding, StringEncoding},
+    tree_typed::TypedTree,
+};
 
 #[cfg(feature = "metrics")]
 use self::{

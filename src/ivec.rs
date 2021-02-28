@@ -11,6 +11,9 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
 };
 
+#[cfg(feature = "experimental_typed_api")]
+use crate::encoding::{Decoder, Encoder};
+
 const SZ: usize = size_of::<usize>();
 const CUTOFF: usize = SZ - 1;
 
@@ -290,6 +293,41 @@ impl Eq for IVec<()> {}
 impl<E> fmt::Debug for IVec<E> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.as_ref().fmt(f)
+    }
+}
+
+#[cfg(feature = "experimental_typed_api")]
+impl<E> IVec<E> {
+    /// Changes the Encoding of an IVec.
+    /// This is a no-op, it just changes the type.
+    /// The bytes contained in the IVec are not changed.
+    pub fn into_encoding<NewEncoding>(self) -> IVec<NewEncoding> {
+        // We avoid incrementing and decrementing the refcount
+        let s = std::mem::ManuallyDrop::new(self);
+        IVec(s.0, std::marker::PhantomData)
+    }
+}
+#[cfg(feature = "experimental_typed_api")]
+impl<E> IVec<E>
+where
+    for<'a> E: Encoder<'a>,
+{
+    /// Create a new IVec, encoded with a value using the given Encoding
+    pub fn encode<'a>(value: <E as Encoder<'a>>::In) -> Self {
+        Self::new(E::encode(value).as_ref())
+    }
+}
+
+#[cfg(feature = "experimental_typed_api")]
+impl<E> IVec<E>
+where
+    for<'a> E: Decoder<'a>,
+{
+    /// Decode an IVec using the given Encoding
+    pub fn decode<'a>(
+        &'a self,
+    ) -> Result<<E as Decoder<'a>>::Out, <E as Decoder<'a>>::Error> {
+        E::decode(self.as_ref())
     }
 }
 
