@@ -107,7 +107,68 @@ fn test_typed_batches() -> std::result::Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+#[test]
+fn test_typed_cas() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    let db = sled::Config::default().temporary(true).open()?;
+
+    let tree = db
+        .open_tree("id_to_name")?
+        .with_encodings::<sled::IntegerEncoding<u128>, sled::StringEncoding>();
+
+    assert!(tree.get(1)?.is_none());
+    let err =
+        tree.compare_and_swap(1, Some("Before"), Some("January"))?.unwrap_err();
+    assert!(err.current.is_none());
+    assert_eq!(err.proposed.unwrap().decode()?, "January");
+    assert!(tree.get(1)?.is_none());
+    assert!(tree.compare_and_swap(1, None, Some("January"))?.is_ok());
+    assert_eq!(tree.get(1)?.unwrap().decode()?, "January");
+
+    assert!(tree.compare_and_swap(1, None, Some("February"))?.is_err());
+    assert!(tree
+        .compare_and_swap(1, Some("March"), Some("February"))?
+        .is_err());
+    assert!(tree
+        .compare_and_swap(1, Some("January"), Some("February"))?
+        .is_ok());
+    assert_eq!(tree.get(1)?.unwrap().decode()?, "February");
+
+    Ok(())
+}
+
+#[test]
+fn test_typed_update_fetch(
+) -> std::result::Result<(), Box<dyn std::error::Error>> {
+    let db = sled::Config::default().temporary(true).open()?;
+
+    // We open a tree and specify the desired encodings for keys and values
+    let tree = db
+        .open_tree("id_to_counter")?
+        .with_encodings::<sled::IntegerEncoding<u128>, sled::IntegerEncoding<u128>>();
+
+    let new_counter = tree.update_and_fetch(1, |old| {
+        let new = match old {
+            None => 1,
+            Some(ivec) => ivec.decode().unwrap() + 1,
+        };
+        Some(sled::IVec::encode(new))
+    })?;
+    assert_eq!(new_counter.unwrap().decode()?, 1);
+    assert_eq!(tree.get(1)?.unwrap().decode()?, 1);
+
+    let old_counter = tree.fetch_and_update(1, |old| {
+        let new = match old {
+            None => 1,
+            Some(ivec) => ivec.decode().unwrap() + 1,
+        };
+        Some(sled::IVec::encode(new))
+    })?;
+    assert_eq!(old_counter.unwrap().decode()?, 1);
+    assert_eq!(tree.get(1)?.unwrap().decode()?, 2);
+
+    Ok(())
+}
+
 // TODO: Iterators
-// TODO: CompareAndSwap
 // TODO: Transactions
 // TODO: Subscribers and Events
