@@ -1,11 +1,11 @@
 #![cfg(feature = "experimental_typed_api")]
 
+// These are simple tests to make sure each API function works as expected,
+// For a quick run, use:
+// cargo test --features experimental_typed_api --test test_typed_api --release
+
 #[test]
 fn test_typed_api() -> std::result::Result<(), Box<dyn std::error::Error>> {
-    // This is a simple test to make sure each API function works as expected,
-    // For a quick run, use:
-    // cargo test --features experimental_typed_api --test test_typed_api --release
-
     let db = sled::Config::default().temporary(true).open()?;
 
     // We open a tree and specify the desired encodings for keys and values
@@ -14,18 +14,18 @@ fn test_typed_api() -> std::result::Result<(), Box<dyn std::error::Error>> {
         .with_encodings::<sled::IntegerEncoding<u128>, sled::StringEncoding>();
 
     // We can now insert entries without manually converting anything into bytes
-    assert_eq!(tree.insert(1, "January")?.is_none(), true);
-    assert_eq!(tree.insert(2, "Febuary")?.is_none(), true);
-    assert_eq!(tree.insert(3, "March")?.is_none(), true);
-    assert_eq!(tree.insert(4, "April")?.is_none(), true);
-    assert_eq!(tree.insert(5, "May")?.is_none(), true);
-    assert_eq!(tree.insert(6, "June")?.is_none(), true);
-    assert_eq!(tree.insert(7, "July")?.is_none(), true);
-    assert_eq!(tree.insert(8, "August")?.is_none(), true);
-    assert_eq!(tree.insert(9, "September")?.is_none(), true);
-    assert_eq!(tree.insert(10, "October")?.is_none(), true);
-    assert_eq!(tree.insert(11, "November")?.is_none(), true);
-    assert_eq!(tree.insert(12, "December")?.is_none(), true);
+    assert!(tree.insert(1, "January")?.is_none());
+    assert!(tree.insert(2, "Febuary")?.is_none());
+    assert!(tree.insert(3, "March")?.is_none());
+    assert!(tree.insert(4, "April")?.is_none());
+    assert!(tree.insert(5, "May")?.is_none());
+    assert!(tree.insert(6, "June")?.is_none());
+    assert!(tree.insert(7, "July")?.is_none());
+    assert!(tree.insert(8, "August")?.is_none());
+    assert!(tree.insert(9, "September")?.is_none());
+    assert!(tree.insert(10, "October")?.is_none());
+    assert!(tree.insert(11, "November")?.is_none());
+    assert!(tree.insert(12, "December")?.is_none());
 
     // Fix spelling
     assert_eq!(tree.insert(2, "February")?.unwrap().decode()?, "Febuary");
@@ -66,8 +66,48 @@ fn test_typed_api() -> std::result::Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+#[test]
+fn test_typed_batches() -> std::result::Result<(), Box<dyn std::error::Error>> {
+    let db = sled::Config::default().temporary(true).open()?;
+
+    // We open a tree and specify the desired encodings for keys and values
+    let tree = db
+        .open_tree("id_to_name")?
+        .with_encodings::<sled::IntegerEncoding<u128>, sled::StringEncoding>();
+
+    // Try to insert the months, but using a Batch
+    tree.insert(2, "Febuary")?;
+    tree.insert(13, "Encore")?;
+
+    let mut batch = tree.make_batch();
+    batch.remove(13);
+    batch.insert(1, "January");
+    batch.insert(2, "February");
+    batch.insert(3, "March");
+    batch.insert(4, "April");
+    batch.insert(5, "May");
+    batch.insert(6, "June");
+    batch.insert(7, "July");
+    batch.insert(8, "August");
+    batch.insert(9, "September");
+    batch.insert(10, "October");
+    batch.insert(11, "November");
+    batch.insert(12, "December");
+
+    assert_eq!(batch.get(2).unwrap().unwrap().decode()?, "February");
+    assert!(batch.get(13).unwrap().is_none());
+    assert!(batch.get(14).is_none());
+
+    tree.apply_batch(batch)?;
+
+    assert_eq!(tree.get(2)?.unwrap().decode()?, "February");
+    assert!(tree.get(13)?.is_none());
+    assert_eq!(tree.len(), 12);
+
+    Ok(())
+}
+
 // TODO: Iterators
 // TODO: CompareAndSwap
-// TODO: Batches
 // TODO: Transactions
 // TODO: Subscribers and Events

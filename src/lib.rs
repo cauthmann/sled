@@ -180,6 +180,8 @@ macro_rules! testing_assert {
 mod atomic_shim;
 mod backoff;
 mod batch;
+#[cfg(feature = "experimental_typed_api")]
+mod batch_typed;
 mod cache_padded;
 mod concurrency_control;
 mod config;
@@ -305,6 +307,7 @@ pub use self::{
 
 #[cfg(feature = "experimental_typed_api")]
 pub use self::{
+    batch_typed::TypedBatch,
     encoding::{Decoder, Encoder, IntegerEncoding, StringEncoding},
     tree_typed::TypedTree,
 };

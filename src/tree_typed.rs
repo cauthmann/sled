@@ -1,6 +1,7 @@
 #![cfg(feature = "experimental_typed_api")]
 
 use crate::{
+    batch_typed::TypedBatch,
     encoding::{Decoder, Encoder},
     tree::*,
     IVec, Result, *,
@@ -56,9 +57,14 @@ where
         todo!()
     }
 
-    /// TODO
-    pub fn apply_batch(&self, batch: Batch) -> Result<()> {
-        todo!()
+    /// Create a new TypedBatch that matches the encodings of this tree
+    pub fn make_batch(&self) -> TypedBatch<K, V> {
+        TypedBatch::<K, V>::default()
+    }
+
+    /// Apply a matching TypedBatch
+    pub fn apply_batch(&self, batch: TypedBatch<K, V>) -> Result<()> {
+        self.tree.apply_batch(batch.batch)
     }
 
     /// Get a value
