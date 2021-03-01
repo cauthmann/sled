@@ -115,7 +115,7 @@ impl Default for IVec<()> {
 
 impl<E> Hash for IVec<E> {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.deref().hash(state);
+        self.as_ref().hash(state);
     }
 }
 
