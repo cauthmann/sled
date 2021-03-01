@@ -32,8 +32,8 @@ pub trait Decoder<'a> {
     /// The type you get when decoding.
     /// When implementing both [`Encoder`] and [`Decoder`], then `Encoder::In` is often a equivalent to (or a reference to) `Decoder::Out`.
     type Out;
-    /// A possible error type when decoding fails.
-    type Error;
+    /// A possible error type when decoding fails. Use `std::convert::Infallible` if this cannot error.
+    type Error: std::error::Error;
 
     /// Decode a byte slice into your type.
     fn decode(bytes: &'a [u8]) -> Result<Self::Out, Self::Error>;
@@ -71,11 +71,11 @@ impl<'a> Encoder<'a> for IntegerEncoding<u128> {
 }
 impl<'a> Decoder<'a> for IntegerEncoding<u128> {
     type Out = u128;
-    type Error = ();
+    type Error = std::array::TryFromSliceError;
 
     fn decode(bytes: &'a [u8]) -> Result<Self::Out, Self::Error> {
         use std::convert::TryInto;
-        let array = bytes.try_into().map_err(|_| ())?;
+        let array = bytes.try_into()?;
         Ok(u128::from_be_bytes(array))
     }
 }
